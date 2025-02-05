@@ -6,6 +6,7 @@ from .views import (
     GenerateTestView,
     RegenerateTestFileView,
     download_word_file,
+    correct_answers_view
 )
 
 urlpatterns = [
@@ -15,4 +16,5 @@ urlpatterns = [
     path('generate-test/', GenerateTestView.as_view(), name='generate_test'),
     path('regenerate-test/<int:test_id>/', RegenerateTestFileView.as_view(), name='regenerate_test_file'),
     path('download-word/<int:test_id>/', download_word_file, name='download_word_file'),
+    path('tests/<str:assessment_id>/correct_answers/', correct_answers_view, name='correct_answers'),
 ]

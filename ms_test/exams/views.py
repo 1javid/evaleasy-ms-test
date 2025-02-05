@@ -1,7 +1,7 @@
 import random
 from io import BytesIO
 
-from django.http import HttpResponse, Http404
+from django.http import JsonResponse, HttpResponse, Http404
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 
 from docx import Document
 
-from .models import Subject, QuestionPool, Question, Test, TestQuestion, GeneratedTestLink
+from .models import *
 from .serializers import (
     SubjectSerializer,
     QuestionPoolSerializer,
@@ -237,3 +237,70 @@ class RegenerateTestFileView(APIView):
             GeneratedTestLink.objects.create(test=test_obj, exam_file=word_file_bytes)
         
         return Response({"detail": "Test regenerated successfully."}, status=status.HTTP_200_OK)
+    
+def correct_answers_view(request, assessment_id):
+    """
+        Endpoint: GET /api/tests/<assessment_id>/correct_answers/
+        
+        Returns a JSON response with:
+        - "correct_answers": mapping of question positions to the correct answer letter (A-E).
+        - "points": mapping of question positions to the question's default score.
+        
+        Example response:
+        {
+            "correct_answers": {
+                "1": "B",
+                "2": "C",
+                "3": "B",
+                // ...
+            },
+            "points": {
+                "1": 1.0,
+                "2": 1.0,
+                "3": 2.0,
+                // ...
+            }
+        }
+    """
+    # Retrieve the Test object using its unique assessment_id.
+    test_obj = get_object_or_404(Test, assessment_id=assessment_id)
+    
+    # Retrieve TestQuestion records for this test, ordered by the position field.
+    test_questions = test_obj.test_questions.all().order_by('position')
+    
+    correct_answers_mapping = {}
+    points_mapping = {}
+    
+    # Define letters to label answers (up to 5 possible answers)
+    letters = ['A', 'B', 'C', 'D', 'E']
+    
+    for tq in test_questions:
+        position_key = str(tq.position)  # Convert position to string for the JSON mapping keys.
+        question = tq.question
+        
+        # Retrieve answers ordered by id (as ensured by Answer.Meta.ordering)
+        answers_list = list(question.answers.all())
+        correct_letter = None
+        
+        # Determine which answer is marked as correct.
+        for idx, answer in enumerate(answers_list):
+            if answer.is_correct:
+                if idx < len(letters):
+                    correct_letter = letters[idx]
+                else:
+                    correct_letter = "?"  # Fallback if more than 5 answers exist.
+                break
+        
+        # If no correct answer is found, mark as "N/A".
+        if correct_letter is None:
+            correct_letter = "N/A"
+        
+        correct_answers_mapping[position_key] = correct_letter
+        points_mapping[position_key] = float(question.default_score)
+    
+    response_data = {
+        "correct_answers": correct_answers_mapping,
+        "points": points_mapping,
+    }
+    
+    return JsonResponse(response_data)

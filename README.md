@@ -22,6 +22,7 @@ This microservice is designed to manage and generate tests for educational purpo
 - `POST /api/generate-test/` - Generate a new test with multiple variants.
 - `POST /api/regenerate-test/<int:test_id>/` - Regenerate the Word file for an existing test.
 - `GET /api/download-word/<int:test_id>/` - Download the generated Word file for a test.
+- `GET /api/tests/<str:assessment_id>/correct_answers/` - Get the correct answers for a test.
 
 ## Requirements
 - Python 3.8+
