@@ -49,6 +49,7 @@ def create_word_file(subject_name, assessment_id, test_name, variant, sorted_tes
     Create a Word document with the given header and test questions.
     sorted_test_questions: list of tuples (position, question) in order.
     Each question's answers are labeled from A to E (up to 5 answers).
+    The question text will also show the point value at the end.
     """
     document = Document()
 
@@ -60,14 +61,15 @@ def create_word_file(subject_name, assessment_id, test_name, variant, sorted_tes
 
     # For each test question, add the question text and its answers.
     for pos, question in sorted_test_questions:
-        # Write the question with its position as a simple numbered paragraph.
-        document.add_paragraph(f"{pos}. {question.text}")
+        # Append the point cost to the question text.
+        # For example: "1. What is 2 + 2? (1 pt.)"
+        question_text_with_points = f"{pos}. {question.text} ({question.default_score} pt.)"
+        document.add_paragraph(question_text_with_points)
         
         # Retrieve answers and label them A, B, C, etc.
         answers = list(question.answers.all())
         letters = ['A', 'B', 'C', 'D', 'E']
         for idx, answer in enumerate(answers[:5]):
-            # Simply add a paragraph with the answer label and text.
             document.add_paragraph(f"   ({letters[idx]}) {answer.text}")
 
     # Save document to a BytesIO stream and return the bytes
