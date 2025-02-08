@@ -68,7 +68,7 @@ This microservice is designed to manage and generate tests for educational purpo
     python manage.py runserver 8001
     ```
 
-2. Access the API at [http://127.0.0.1:8001/api/](http://_vscodecontentref_/1)
+2. Access the API at [http://127.0.0.1:8002/api/](http://_vscodecontentref_/1)
 
 3. Use the provided endpoints to create subjects, question pools, questions, and generate tests.
 

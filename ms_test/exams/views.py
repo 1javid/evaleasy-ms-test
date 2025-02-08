@@ -27,6 +27,10 @@ class CreateSubjectView(generics.CreateAPIView):
     queryset = Subject.objects.all()
     serializer_class = SubjectSerializer
 
+class ListSubjectsView(generics.ListAPIView):
+    queryset = Subject.objects.all()
+    serializer_class = SubjectSerializer
+
 # Endpoint: Create Question (with nested Answers)
 class CreateQuestionWithAnswersView(generics.CreateAPIView):
     queryset = Question.objects.all()

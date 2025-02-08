@@ -1,16 +1,9 @@
 from django.urls import path
-from .views import (
-    CreateSubjectView,
-    CreateQuestionWithAnswersView,
-    CreateQuestionPoolView,
-    GenerateTestView,
-    RegenerateTestFileView,
-    download_word_file,
-    correct_answers_view
-)
+from .views import *
 
 urlpatterns = [
     path('subjects/', CreateSubjectView.as_view(), name='create_subject'),
+    path('subjects/list/', ListSubjectsView.as_view(), name='list_subjects'),  # Add the new URL pattern
     path('questions/', CreateQuestionWithAnswersView.as_view(), name='create_question_with_answers'),
     path('question-pools/', CreateQuestionPoolView.as_view(), name='create_question_pool'),
     path('generate-test/', GenerateTestView.as_view(), name='generate_test'),
