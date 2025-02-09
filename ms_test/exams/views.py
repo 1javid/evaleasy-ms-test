@@ -1,7 +1,10 @@
 import random
+import zipfile
 from io import BytesIO
+import os
+from django.conf import settings
 
-from django.http import JsonResponse, HttpResponse, Http404
+from django.http import JsonResponse, HttpResponse, Http404, FileResponse
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
@@ -10,14 +13,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from docx import Document
+from docx.shared import Inches
+from docx.enum.section import WD_SECTION
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.section import WD_ORIENTATION
+
 
 from .models import *
-from .serializers import (
-    SubjectSerializer,
-    QuestionPoolSerializer,
-    QuestionSerializer,
-    TestGenerationSerializer,
-)
+from .serializers import *
 
 from .models import Subject, QuestionPool, Question
 from .serializers import SubjectSerializer, QuestionPoolSerializer, QuestionSerializer
@@ -28,6 +31,24 @@ class CreateSubjectView(generics.CreateAPIView):
     serializer_class = SubjectSerializer
 
 class ListSubjectsView(generics.ListAPIView):
+    serializer_class = SubjectSerializer
+
+    def get_queryset(self):
+        created_by = self.request.query_params.get('created_by')
+        if created_by:
+            return Subject.objects.filter(created_by=created_by)
+        return Subject.objects.all()
+
+class ListTestQuestionsByAssessmentIdView(generics.ListAPIView):
+    serializer_class = QuestionSerializer
+
+    def get_queryset(self):
+        assessment_id = self.kwargs['assessment_id']
+        test_questions = TestQuestion.objects.filter(assessment_id=assessment_id)
+        question_ids = test_questions.values_list('question_id', flat=True)
+        return Question.objects.filter(id__in=question_ids)
+
+class RetrieveSubjectView(generics.RetrieveAPIView):
     queryset = Subject.objects.all()
     serializer_class = SubjectSerializer
 
@@ -36,19 +57,102 @@ class CreateQuestionWithAnswersView(generics.CreateAPIView):
     queryset = Question.objects.all()
     serializer_class = QuestionSerializer
 
+class ListQuestionsByQuestionPoolView(generics.ListAPIView):
+    serializer_class = QuestionSerializer
+
+    def get_queryset(self):
+        question_pool_id = self.kwargs['question_pool_id']
+        return Question.objects.filter(question_pool_id=question_pool_id)
+
 # Endpoint: Create Question Pool
 class CreateQuestionPoolView(generics.CreateAPIView):
     queryset = QuestionPool.objects.all()
     serializer_class = QuestionPoolSerializer
 
+class ListQuestionPoolsBySubjectView(generics.ListAPIView):
+    serializer_class = QuestionPoolSerializer
+
+    def get_queryset(self):
+        subject_id = self.kwargs['subject_id']
+        return QuestionPool.objects.filter(subject_id=subject_id)
+    
+class RetrieveTestByAssessmentIdView(generics.RetrieveAPIView):
+    queryset = Test.objects.all()
+    serializer_class = TestSerializer
+    lookup_field = 'assessment_id'
+
+class ListTestsBySubjectView(generics.ListAPIView):
+    serializer_class = TestSerializer
+
+    def get_queryset(self):
+        subject_id = self.kwargs['subject_id']
+        return Test.objects.filter(subject_id=subject_id)
+    
+class ListGroupIdsBySubjectView(generics.ListAPIView):
+    serializer_class = GroupIdSerializer
+
+    def get_queryset(self):
+        subject_id = self.kwargs['subject_id']
+        return Test.objects.filter(subject_id=subject_id).values('group_id').distinct()
+    
+class ListTestsByGroupIdView(generics.ListAPIView):
+    serializer_class = TestSerializer
+
+    def get_queryset(self):
+        group_id = self.kwargs['group_id']
+        return Test.objects.filter(group_id=group_id)
+
+class GetDownloadLinkByGroupIdView(APIView):
+    def get(self, request, *args, **kwargs):
+        group_id = self.kwargs.get('group_id')
+        
+        # Retrieve all generated links associated with the group_id
+        generated_links = GeneratedTestLink.objects.filter(test__group_id=group_id)
+        if not generated_links.exists():
+            return Response(
+                {"detail": "No tests found for the given group ID."},
+                status=404
+            )
+        
+        # Create a ZIP file in memory
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+            for generated_link in generated_links:
+                test = generated_link.test
+                file_name = f"{test.name}_Variant_{test.variant}.docx"
+                
+                # If exam_file is a FileField, read its content
+                if hasattr(generated_link.exam_file, 'read'):
+                    file_content = generated_link.exam_file.read()
+                else:
+                    file_content = generated_link.exam_file
+                
+                zip_file.writestr(file_name, file_content)
+        
+        # Reset buffer pointer to the beginning
+        zip_buffer.seek(0)
+        
+        # Create the HTTP response with the zip file
+        response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{group_id}_tests.zip"'
+        return response
+
+def generate_unique_id():
+    """Generate a unique 5-digit id as a string."""
+    while True:
+        unique_id = str(random.randint(10000, 99999))
+        if not Test.objects.filter(group_id=unique_id).exists() and not Test.objects.filter(assessment_id=unique_id).exists():
+            return unique_id
+
+def generate_unique_group_id():
+    """Generate a unique 5-digit group id as a string."""
+    return generate_unique_id()
+
 def generate_unique_assessment_id():
     """Generate a unique 5-digit assessment id as a string."""
-    while True:
-        assessment_id = str(random.randint(10000, 99999))
-        if not Test.objects.filter(assessment_id=assessment_id).exists():
-            return assessment_id
+    return generate_unique_id()
 
-def create_word_file(subject_name, assessment_id, test_name, variant, sorted_test_questions):
+def create_word_file(subject_name, assessment_id, test_name, variant, sorted_test_questions, answer_sheet_image_path):
     """
     Create a Word document with the given header and test questions.
     sorted_test_questions: list of tuples (position, question) in order.
@@ -75,6 +179,18 @@ def create_word_file(subject_name, assessment_id, test_name, variant, sorted_tes
         letters = ['A', 'B', 'C', 'D', 'E']
         for idx, answer in enumerate(answers[:5]):
             document.add_paragraph(f"   ({letters[idx]}) {answer.text}")
+
+    # Add a new section for the answer sheet image
+    section = document.add_section(WD_SECTION.NEW_PAGE)
+    section.orientation = WD_ORIENTATION.PORTRAIT
+    section.page_width = Inches(8.5)
+    section.page_height = Inches(11)
+
+    # Add the answer sheet image
+    paragraph = document.add_paragraph()
+    run = paragraph.add_run()
+    run.add_picture(answer_sheet_image_path, width=Inches(8.5), height=Inches(11))
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # Save document to a BytesIO stream and return the bytes
     file_stream = BytesIO()
@@ -124,11 +240,19 @@ class GenerateTestView(APIView):
         test_name = data['name']
         variants = data['variants']
         question_selections = data['question_selections']
+        notes = data.get('notes')
+        instructions = data.get('instructions')
 
         results = []
 
+        # Generate a unique group ID once for all variants
+        group_id = generate_unique_group_id()
+
         # For each variant, build a test
         for variant in variants:
+            # Generate a unique assessment ID for each variant
+            assessment_id = generate_unique_assessment_id()
+
             # Dictionary mapping question position -> Question instance.
             test_questions_mapping = {}
 
@@ -162,14 +286,16 @@ class GenerateTestView(APIView):
             # Ensure questions are sorted by their position
             sorted_test_questions = sorted(test_questions_mapping.items(), key=lambda x: x[0])
 
-            # Create a Test record with a unique, randomly generated 5-digit assessment id.
-            assessment_id = generate_unique_assessment_id()
+            # Create a Test record with the generated group ID and assessment ID.
             test_obj = Test.objects.create(
                 subject=subject,
                 instructor_id=instructor_id,
+                group_id=group_id,
                 assessment_id=assessment_id,
                 name=test_name,
                 variant=variant,
+                notes=notes,
+                instructions=instructions,
             )
 
             # Create TestQuestion records
@@ -178,6 +304,7 @@ class GenerateTestView(APIView):
                     test=test_obj,
                     question=question,
                     position=pos,
+                    assessment_id=assessment_id  # Add this line
                 )
 
             # Generate the Word file for this test
@@ -187,22 +314,25 @@ class GenerateTestView(APIView):
                 test_name=test_name,
                 variant=variant,
                 sorted_test_questions=sorted_test_questions,
+                answer_sheet_image_path="./exams/img/blank_sheet.jpg"
             )
 
             # Save the generated Word file
             GeneratedTestLink.objects.create(
                 test=test_obj,
                 exam_file=word_file_bytes,
+                assessment_id=assessment_id
             )
 
             results.append({
                 "test_id": test_obj.id,
+                "group_id": group_id,
                 "assessment_id": assessment_id,
                 "variant": variant,
             })
 
         return Response({"generated_tests": results}, status=status.HTTP_201_CREATED)
-    
+
 class RegenerateTestFileView(APIView):
     """
     Regenerates the Word file for an already created test.

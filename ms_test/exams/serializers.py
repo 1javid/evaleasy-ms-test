@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Subject, QuestionPool, Question, Answer
+from .models import *
 
 class SubjectSerializer(serializers.ModelSerializer):
     class Meta:
@@ -34,6 +34,16 @@ class QuestionSerializer(serializers.ModelSerializer):
             Answer.objects.create(question=question, **answer_data)
         return question
 
+class GroupIdSerializer(serializers.Serializer):
+    group_id = serializers.CharField(max_length=6)
+
+class TestSerializer(serializers.ModelSerializer):
+    subject_id = serializers.IntegerField(source='subject.id', read_only=True)
+    
+    class Meta:
+        model = Test
+        fields = ['id', 'subject_id', 'instructor_id', 'group_id', 'assessment_id', 'name', 'variant', 'notes', 'instructions']
+
 # -------------------------------
 # Serializers for test generation
 # -------------------------------
@@ -52,3 +62,5 @@ class TestGenerationSerializer(serializers.Serializer):
     # List of question selections – each entry determines from which question pool to randomly
     # select questions and the positions in the test exam where they should appear.
     question_selections = TestGenerationQuestionSelectionSerializer(many=True)
+    notes = serializers.CharField(max_length=255, allow_blank=True, required=False, allow_null=True)  
+    instructions = serializers.CharField(max_length=255, allow_blank=True, required=False, allow_null=True) 

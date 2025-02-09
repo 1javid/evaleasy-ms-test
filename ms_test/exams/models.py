@@ -48,6 +48,7 @@ class Answer(models.Model):
 class Test(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='tests')
     instructor_id = models.IntegerField()  # Referenced via user_id from UserService
+    group_id = models.CharField(max_length=6)  # Randomly generated 5-digit string
     assessment_id = models.CharField(max_length=6, unique=True)  # Randomly generated 5-digit string
     name = models.CharField(max_length=255)
     variant = models.CharField(max_length=2)
@@ -61,14 +62,17 @@ class Test(models.Model):
 
 class TestQuestion(models.Model):
     test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name='test_questions')
-    question = models.ForeignKey(Question, on_delete=models.CASCADE)
-    position = models.IntegerField()  # Added field to store the order/position of the question
-    created_at = models.DateTimeField(auto_now_add=True)
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name='test_questions')
+    position = models.IntegerField()
+    assessment_id = models.CharField(max_length=6)  # Add this line
 
     def __str__(self):
-        return f"Test {self.test.id} - Q{self.position}"
+        return f"{self.test.name} - {self.question.text} (Position {self.position})"
 
 class GeneratedTestLink(models.Model):
     test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name='generated_links')
-    exam_file = models.BinaryField()  # Generated Word file as bytes
-    created_at = models.DateTimeField(auto_now_add=True)
+    exam_file = models.BinaryField()
+    assessment_id = models.CharField(max_length=6)  # Add this line
+
+    def __str__(self):
+        return f"Generated link for {self.test.name} (Variant {self.test.variant})"
