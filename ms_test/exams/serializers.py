@@ -33,6 +33,31 @@ class QuestionSerializer(serializers.ModelSerializer):
         for answer_data in answers_data:
             Answer.objects.create(question=question, **answer_data)
         return question
+    
+class QuestionWithoutPoolSerializer(serializers.ModelSerializer):
+    answers = AnswerSerializer(many=True)
+
+    class Meta:
+        model = Question
+        fields = ['id', 'text', 'default_score', 'answers', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+class BulkQuestionSerializer(serializers.Serializer):
+    questions = QuestionWithoutPoolSerializer(many=True)
+
+    def create(self, validated_data):
+        questions_data = validated_data.pop('questions')
+        question_pool_id = self.context['question_pool']
+        question_pool = QuestionPool.objects.get(id=question_pool_id)
+        questions = []
+        for question_data in questions_data:
+            answers_data = question_data.pop('answers')
+            question = Question.objects.create(question_pool=question_pool, **question_data)
+            for answer_data in answers_data:
+                Answer.objects.create(question=question, **answer_data)
+            questions.append(question)
+        # Return a dict with questions key instead of just the list
+        return {'questions': questions}
 
 class GroupIdSerializer(serializers.Serializer):
     group_id = serializers.CharField(max_length=6)

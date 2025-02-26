@@ -19,4 +19,5 @@ urlpatterns = [
     path('regenerate-test/<int:test_id>/', RegenerateTestFileView.as_view(), name='regenerate_test_file'),
     path('download-word/<int:test_id>/', download_word_file, name='download_word_file'),
     path('tests/<str:assessment_id>/correct_answers/', correct_answers_view, name='correct_answers'),
+    path('questions/bulk/<int:question_pool>/', CreateManyQuestionsView.as_view(), name='create_many_questions'),
 ]

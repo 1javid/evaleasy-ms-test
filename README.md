@@ -19,6 +19,7 @@ This microservice is designed to manage and generate tests for educational purpo
 ### Questions
 
 - `POST /api/test/questions/` - Create a new question with nested answers.
+- `POST /api/test/questions/bulk/<int:question_pool_id>/` - Create many questions given a question pool ID.
 - `GET /api/test/questions/question-pool/<int:question_pool_id>/` - List questions by question pool ID.
 
 ### Question Pools
