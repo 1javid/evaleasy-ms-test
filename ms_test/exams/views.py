@@ -72,6 +72,15 @@ class CreateManyQuestionsView(generics.CreateAPIView):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
+class DeleteQuestionFromPoolView(generics.DestroyAPIView):
+    queryset = Question.objects.all()
+    serializer_class = QuestionSerializer
+
+    def get_object(self):
+        question_pool_id = self.kwargs['question_pool']
+        question_id = self.kwargs['id']
+        return get_object_or_404(Question, id=question_id, question_pool_id=question_pool_id)
+
 class ListQuestionsByQuestionPoolView(generics.ListAPIView):
     serializer_class = QuestionSerializer
 

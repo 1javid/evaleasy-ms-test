@@ -20,4 +20,5 @@ urlpatterns = [
     path('download-word/<int:test_id>/', download_word_file, name='download_word_file'),
     path('tests/<str:assessment_id>/correct_answers/', correct_answers_view, name='correct_answers'),
     path('questions/bulk/<int:question_pool>/', CreateManyQuestionsView.as_view(), name='create_many_questions'),
+    path('questions/question-pool/<int:question_pool>/delete/<int:id>/', DeleteQuestionFromPoolView.as_view(), name='delete_question_from_pool'),
 ]
