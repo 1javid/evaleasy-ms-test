@@ -209,6 +209,11 @@ def create_word_file(subject_name, assessment_id, test_name, variant, sorted_tes
     section.orientation = WD_ORIENTATION.PORTRAIT
     section.page_width = Inches(8.5)
     section.page_height = Inches(11)
+    # Set margins to zero so the image covers the entire page
+    section.top_margin = Inches(0)
+    section.bottom_margin = Inches(0)
+    section.left_margin = Inches(0)
+    section.right_margin = Inches(0)
 
     # Add the answer sheet image
     paragraph = document.add_paragraph()
